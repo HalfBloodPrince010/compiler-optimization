@@ -10,6 +10,8 @@ RUN apt-get update && \
         lsb-release software-properties-common gpg-agent && \
     rm -rf /var/lib/apt/lists/*
 
+RUN add-apt-repository ppa:neovim-ppa/unstable && apt-get update && apt-get install -y neovim
+
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-${LLVM_VERSION} main" && \
     apt-get update && \
@@ -21,5 +23,7 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
 
 RUN wget https://bootstrap.pypa.io/get-pip.py && \
     python3 get-pip.py && rm -f get-pip.py
+
+RUN apt install zip python3-venv
 
 RUN pip3 install lit==0.11.0 cmake==3.18.4
