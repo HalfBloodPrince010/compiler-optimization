@@ -16,9 +16,7 @@ public:
 
   AlgebraicIdentity() : FunctionPass(ID) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {}
 
   void removeDeadCode(const std::vector<Instruction *> &deadInstructions) {
     for (auto &deadInst : deadInstructions) {
