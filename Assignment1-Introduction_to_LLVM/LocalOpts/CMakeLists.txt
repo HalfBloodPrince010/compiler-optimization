@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(LocalOpts)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 set(LLVM_VERSION "12" CACHE STRING "LLVM Version")
 set(LLVM_VERSION_SUFFIX "-${LLVM_VERSION}")
