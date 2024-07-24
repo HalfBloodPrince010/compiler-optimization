@@ -24,6 +24,6 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
 RUN wget https://bootstrap.pypa.io/get-pip.py && \
     python3 get-pip.py && rm -f get-pip.py
 
-RUN apt-get install zip python3-venv
+RUN apt-get update && apt-get install -y zip python3-venv
 
 RUN pip3 install lit==0.11.0 cmake==3.18.4
