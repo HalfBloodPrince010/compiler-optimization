@@ -97,8 +97,12 @@ private:
     } // for (MaskIdx ∈ [0, Mask.size()))
     errs() << "}";
   }
+
   /**
-   * @todo(cscd70) Please provide an instantiation for the backward pass.
+   * @brief Fetch the DomainMap for the Instr, and print out at the
+   * value at the Instr point in the Forward pass.
+   * This can help visualize how each point (Instr) affect the domainMap.
+   *
    */
   METHOD_ENABLE_IF_DIRECTION(Direction::kForward, void)
   printInstDomainValMap(const Instruction &Inst) const {
@@ -113,6 +117,24 @@ private:
     printDomainWithMask(InstDomainValMap.at(&Inst));
     errs() << "\n";
   }
+
+  /**
+   * Fetch and Print DomainMap values for each Instr during the backward pass
+   */
+  METHOD_ENABLE_IF_DIRECTION(Direction::kBackward, void)
+  printInstDomainValMap(const Instruction &Inst) const {
+    const BasicBlock *const InstParent = Inst.getParent();
+    if (&Inst == &(InstParent->back())) {
+      errs() << "\t";
+      printDomainWithMask(getBoundaryVal(*InstParent));
+      errs() << "\n";
+    } // if (&Inst == &(*InstParent->end()))
+    outs() << Inst << "\n";
+    errs() << "\t";
+    printDomainWithMask(InstDomainValMap.at(&Inst));
+    errs() << "\n";
+  }
+
   /**
    * @brief Dump, ∀inst ∈ F, the associated domain value.
    */
@@ -142,16 +164,33 @@ protected:
 
 private:
   /**
-   * @todo(cscd70) Please provide an instantiation for the backward pass.
+   * @brief Meet Operands for the Forward Direction Pass.
+   *
+   * Return last instruction's DomainVal map for each of the predecessors.
    */
   METHOD_ENABLE_IF_DIRECTION(Direction::kForward, MeetOperands_t)
   getMeetOperands(const BasicBlock &BB) const {
-    MeetOperands_t Operands;
-    /**
-     * @todo(cscd70) Please complete the definition of this method.
-     */
+    MeetOperands_t operands;
+    for (auto *pred : predecessors(&BB)) {
+      operands.push_back(InstDomainValMap.at(pred->back()));
+    }
 
-    return Operands;
+    return operands;
+  }
+
+  /**
+   * @brief Meet Operands for the Backward Direction Pass.
+   *
+   * Return the first instruction's DomainVal map for each successors.
+   */
+  METHOD_ENABLE_IF_DIRECTION(Direction::kBackward, MeetOperands_t)
+  getMeetOperands(const BasicBlock &BB) const {
+    MeetOperands_t operands;
+    for (auto *succ : successors(&BB)) {
+      operands.push_back(InstDomainValMap.at(succ->front()));
+    }
+
+    return operands;
   }
   /**
    * @brief Boundary Condition
@@ -161,11 +200,15 @@ private:
    * @brief Apply the meet operator to the operands.
    */
   DomainVal_t meet(const MeetOperands_t &MeetOperands) const {
-    /**
-     * @todo(cscd70) Please complete the defintion of this method.
-     */
+    TMeetOp MeetOp;
+    // Does first element should be top?? or since all elements are assigned top
+    // during initialization, this should be okay?
+    DomainVal_t merge = MeetOperands.at(0);
+    for (int Idx = 1; Idx < MeetOperands.size(); Idx++) {
+      merge = MeetOp(merge, MeetOperands.at(Idx));
+    }
 
-    return DomainVal_t(Domain.size());
+    return merge;
   }
   /*****************************************************************************
    * Transfer Function
