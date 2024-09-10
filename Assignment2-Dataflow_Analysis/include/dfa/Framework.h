@@ -24,8 +24,8 @@ enum class Direction { kForward, kBackward };
 template <Direction TDirection> //
 struct FrameworkTypeSupport {};
 
-/**
- * @todo(cscd70) Modify the typedefs if necessary.
+/*
+ * Provides support to iterate thorugh a subrange.
  */
 template <> //
 struct FrameworkTypeSupport<Direction::kForward> {
@@ -33,9 +33,13 @@ struct FrameworkTypeSupport<Direction::kForward> {
   typedef iterator_range<BasicBlock::const_iterator> InstTraversalConstRange;
 };
 
-/**
- * @todo(cscd70) Please provide an instantiation for the backward pass.
- */
+template <> //
+struct FrameworkTypeSupport<Direction::kBackward> {
+  typedef iterator_range<Function::BasicBlockListType::const_reverse_iterator>
+      BBTraversalConstRange;
+  typedef iterator_range<BasicBlock::InstListType::const_reverse_iterator>
+      InstTraversalConstRange;
+};
 
 /**
  * @brief  Dataflow Analysis Framework
@@ -240,33 +244,71 @@ private:
    * CFG Traversal
    *****************************************************************************/
   /**
-   * @brief Return the traversal order of the basic blocks.
-   *
-   * @todo(cscd70) Please modify the definition (and the above typedef
-   *               accordingly) for the optimal traversal order.
-   * @todo(cscd70) Please provide an instantiation for the backward pass.
+   * @brief Return the traversal order of the basic blocks for a forward pass.
    */
   METHOD_ENABLE_IF_DIRECTION(Direction::kForward, BBTraversalConstRange)
   getBBTraversalOrder(const Function &F) const {
+    /*
+     * return iterator_range<T>(std::move(x), std::move(y));
+     * which defines begin() and end() to return iterators to be
+     * compatible with range based for-loops.
+     */
     return make_range(F.begin(), F.end());
   }
   /**
-   * @brief Return the traversal order of the instructions.
-   *
-   * @todo(cscd70) Please provide an instantiation for the backward pass.
+   * @brief Return the traversal order of the instructions for a forward pass.
    */
   METHOD_ENABLE_IF_DIRECTION(Direction::kForward, InstTraversalConstRange)
   getInstTraversalOrder(const BasicBlock &BB) const {
     return make_range(BB.begin(), BB.end());
   }
+
+  /**
+   * @brief Return the traversal order of the basic blocks for a backward pass.
+   */
+  METHOD_ENABLE_IF_DIRECTION(Direction::kBackward, BBTraversalConstRange)
+  getBBTraversalOrder(const Function &F) const {
+    return make_range(F.getBasicBlockList().rbegin(),
+                      F.getBasicBlockList().rend());
+  }
+  /**
+   * @brief Return the traversal order of the instructions for a backward pass.
+   */
+  METHOD_ENABLE_IF_DIRECTION(Direction::kBackward, InstTraversalConstRange)
+  getInstTraversalOrder(const BasicBlock &BB) const {
+    return make_range(BB.rbegin(), BB.rend());
+  }
+
   /**
    * @brief  Traverse through the CFG and update instruction-domain value
    *         mapping.
    * @return true if changes are made to the mapping, false otherwise
    *
-   * @todo(cscd70) Please implement this method.
    */
-  bool traverseCFG(const Function &F) { return false; }
+  bool traverseCFG(const Function &F) {
+    bool isChanged = false;
+    for (const llvm::BasicBlock *BB : getBBTraversalOrder(F)) {
+      /*
+       * Initial
+       * Case 1: First or Last Instruction in a BB, and not entry
+       * or exit block. Get meet(meetOperands())
+       * Case 2: Entry or Exit block, get bc().
+       */
+      DomainVal_t IN = getBoundaryVal(BB);
+      for (const llvm::Instruction *I : getInstTraversalOrder(BB)) {
+        DomainVal_t OUT = InstDomainValMap.at(I);
+        isChanged = isChanged | transferFunc(I, &IN, &OUT);
+        errs() << "Instr:" << I->getName() << "\n";
+        /*
+         * Case 3: Middle of the block, hence predeccesor (Forward) or successor
+         * (Backward) acts as input for next Inst.
+         */
+        IN = OUT;
+      }
+    }
+
+    return isChanged;
+  }
   /*****************************************************************************
    * Domain Initialization
    *****************************************************************************/

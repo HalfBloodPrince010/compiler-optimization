@@ -16,10 +16,27 @@ struct Expression {
   Expression(const BinaryOperator &BinaryOp)
       : Opcode(BinaryOp.getOpcode()), LHS(BinaryOp.getOperand(0)),
         RHS(BinaryOp.getOperand(1)) {}
-  /**
-   * @todo(cscd70) Please complete the comparator.
-   */
-  bool operator==(const Expression &Expr) const { return false; }
+
+  bool operator==(const Expression &Expr) const {
+    if (Expr.Opcode == Opcode && Expr.LHS == LHS && Expr.RHS == RHS) {
+      return true;
+    }
+
+    /*
+    * Commutation Instruction like add (8), fadd(9), mul(12) and fmul(13),
+    * where lhs + rhs == rhs + lhs
+    * https://llvm.org/doxygen/group__LLVMCCoreTypes.html
+    */
+    if (Expr.Opcode == Opcode) {
+      if (Opcode == 8 || Opcode == 9 || Opcode == 12 || Opcode == 13) {
+        if (Expr.LHS == RHS && Expr.RHS == LHS) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
 };
 
 inline raw_ostream &operator<<(raw_ostream &Outs, const Expression &Expr) {

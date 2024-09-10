@@ -1,11 +1,11 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV LLVM_VERSION=12
 
 RUN apt-get update && \
     env DEBIAN_FRONTEND=noninteractive \
     apt-get install -y \
-        vim git build-essential python3-dev \
+        vim git build-essential python3-dev curl zip python3-venv doxygen graphviz \
         wget ca-certificates \
         lsb-release software-properties-common gpg-agent && \
     rm -rf /var/lib/apt/lists/*
@@ -24,6 +24,6 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
 RUN wget https://bootstrap.pypa.io/get-pip.py && \
     python3 get-pip.py && rm -f get-pip.py
 
-RUN apt-get update && apt-get install -y zip python3-venv
+RUN python3 -m pip install --upgrade pip
 
-RUN pip3 install lit==0.11.0 cmake==3.18.4
+RUN pip3 install lit==0.11.0 cmake
