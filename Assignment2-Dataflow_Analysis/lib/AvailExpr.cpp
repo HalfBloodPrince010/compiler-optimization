@@ -1,6 +1,7 @@
 /**
  * @file Available Expression Dataflow Analysis
  */
+#include <llvm-12/llvm/Support/Casting.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
@@ -10,6 +11,8 @@
 #include <dfa/MeetOp.h>
 
 #include "Expression.h"
+
+#define DEBUG_AVAIL_EXPR
 
 using namespace dfa;
 using namespace llvm;
@@ -25,17 +28,91 @@ private:
     if (const BinaryOperator *const BinaryOp =
             dyn_cast<BinaryOperator>(&Inst)) {
       /**
-       * @todo(cscd70) Please complete the construction of domain.
+       * Add Expression to the domain
+       * std::vector<TDomainElem> Domain
+       * TDomainElem is Expression
        */
+      Expression Expr = Expression(*BinaryOp);
+      // If Expr not already in the Domain, add it
+      if (std::find(Domain.begin(), Domain.end(), Expr) != Domain.end()) {
+        Domain.emplace_back(Expr);
+      }
     }
   }
   virtual bool transferFunc(const Instruction &Inst, const DomainVal_t &IBV,
                             DomainVal_t &OBV) override {
-    /**
-     * @todo(cscd70) Please complete the definition of the transfer function.
-     */
 
-    return false;
+    int Idx = 0;
+    DomainVal_t TEMP_OBV = IBV;
+
+    /*
+     * Step 1: Generate
+     *
+     * Set the newly defined Instr in output.
+     * Add only if its a BinaryInstr
+     *
+     * x = x + 1 -> Generate, then kill X
+     */
+    if (const BinaryOperator *const BinaryOp =
+            dyn_cast<BinaryOperator>(&Inst)) {
+      Expression Expr = Expression(*BinaryOp);
+      auto it = std::find(Domain.begin(), Domain.end(), Expr);
+      if (it != Domain.end()) {
+        int index = it - Domain.begin();
+#ifdef DEBUG_AVAIL_EXPR
+        errs() << "Binary Instruction"
+               << "\n";
+        errs() << "Inst is at index :" << index << "\n";
+        errs() << "Set the TEMP Out Bit Vector at the index to true"
+               << "\n";
+#endif
+        TEMP_OBV.at(index) = true;
+      }
+    }
+    /*
+     * Step 2: Kill
+     *
+     * For all Expressions in Domain, whose Expr.LHS or Expr.RHS
+     * equals current Inst, then Expr is killed or no more valid,
+     * because Inst is re-defined.
+     */
+    for (Expression Expr : Domain) {
+      bool redefined = false;
+      // LHS
+      if (auto *InstLHS = dyn_cast<Instruction>(Expr.LHS)) {
+        if (InstLHS == &Inst) {
+#ifdef DEBUG_AVAIL_EXPR
+          errs() << "Instruction matched with LHS of domain Expr"
+                 << "\n";
+          errs() << "Expression LHS: " << InstLHS->getName() << "\n";
+          errs() << "Inst: " << Inst.getName() << "\n";
+#endif
+          redefined = true;
+        }
+      }
+      // RHS
+      if (auto *InstRHS = dyn_cast<Instruction>(Expr.RHS)) {
+        if (InstRHS == &Inst) {
+#ifdef DEBUG_AVAIL_EXPR
+          errs() << "Instruction matched with RHS of domain Expr"
+                 << "\n";
+          errs() << "Expression RHS: " << InstRHS->getName() << "\n";
+          errs() << "Inst: " << Inst.getName() << "\n";
+#endif
+          redefined = true;
+        }
+      }
+      if (redefined) {
+        TEMP_OBV.at(Idx) = false;
+      }
+      Idx++;
+    }
+
+    // Did Output BitVector change?
+    bool isChanged = diff(OBV, TEMP_OBV);
+
+    OBV = TEMP_OBV;
+    return isChanged;
   }
 
 public:

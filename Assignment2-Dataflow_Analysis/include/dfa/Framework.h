@@ -218,7 +218,7 @@ private:
    * Transfer Function
    *****************************************************************************/
 protected:
-  static bool diff(const DomainVal_t &LHS, const DomainVal_t &RHS) {
+  static bool diff(DomainVal_t &LHS, DomainVal_t &RHS) {
     if (LHS.size() != RHS.size()) {
       assert(false && "Size of domain values has to be the same");
     }
@@ -299,6 +299,8 @@ private:
         DomainVal_t OUT = InstDomainValMap.at(I);
         isChanged = isChanged | transferFunc(I, &IN, &OUT);
         errs() << "Instr:" << I->getName() << "\n";
+        // If output changed, we need to update the InstDomainValMap for next iter.
+        InstDomainValMap.at(I) = OUT;
         /*
          * Case 3: Middle of the block, hence predeccesor (Forward) or successor
          * (Backward) acts as input for next Inst.
