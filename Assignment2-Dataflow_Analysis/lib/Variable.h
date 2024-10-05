@@ -2,6 +2,7 @@
 
 #include <llvm/IR/Value.h>
 #include <llvm/Support/raw_ostream.h>
+#define DEBUG_LIVENESS
 
 using namespace dfa;
 using namespace llvm;
