@@ -33,8 +33,16 @@ private:
        * TDomainElem is Expression
        */
       Expression Expr = Expression(*BinaryOp);
-      // If Expr not already in the Domain, add it
-      if (std::find(Domain.begin(), Domain.end(), Expr) != Domain.end()) {
+// If Expr not already in the Domain, add it
+#ifdef DEBUG_AVAIL_EXPR
+      errs() << "Domain Inst:" << Inst << "\n";
+      errs() << "\t\tExpression:"
+             << "\n";
+      errs() << "\t\t  Opcode:" << Expr.Opcode << "\n";
+      errs() << "\t\t  LHS:" << *Expr.LHS << "\n";
+      errs() << "\t\t  RHS:" << *Expr.RHS << "\n";
+#endif
+      if (std::find(Domain.begin(), Domain.end(), Expr) == Domain.end()) {
         Domain.emplace_back(Expr);
       }
     }
@@ -59,13 +67,6 @@ private:
       auto it = std::find(Domain.begin(), Domain.end(), Expr);
       if (it != Domain.end()) {
         int index = it - Domain.begin();
-#ifdef DEBUG_AVAIL_EXPR
-        errs() << "Binary Instruction"
-               << "\n";
-        errs() << "Inst is at index :" << index << "\n";
-        errs() << "Set the TEMP Out Bit Vector at the index to true"
-               << "\n";
-#endif
         TEMP_OBV.at(index) = true;
       }
     }
@@ -81,24 +82,12 @@ private:
       // LHS
       if (auto *InstLHS = dyn_cast<Instruction>(Expr.LHS)) {
         if (InstLHS == &Inst) {
-#ifdef DEBUG_AVAIL_EXPR
-          errs() << "Instruction matched with LHS of domain Expr"
-                 << "\n";
-          errs() << "Expression LHS: " << InstLHS->getName() << "\n";
-          errs() << "Inst: " << Inst.getName() << "\n";
-#endif
           redefined = true;
         }
       }
       // RHS
       if (auto *InstRHS = dyn_cast<Instruction>(Expr.RHS)) {
         if (InstRHS == &Inst) {
-#ifdef DEBUG_AVAIL_EXPR
-          errs() << "Instruction matched with RHS of domain Expr"
-                 << "\n";
-          errs() << "Expression RHS: " << InstRHS->getName() << "\n";
-          errs() << "Inst: " << Inst.getName() << "\n";
-#endif
           redefined = true;
         }
       }

@@ -35,7 +35,7 @@ public:
     }
 
     DomainVal_t result(LHS.size(), false);
-    for (int i = 0; i < LHS.size(); i++) {
+    for (long unsigned int i = 0; i < LHS.size(); i++) {
       result[i] = LHS[i] && RHS[i];
     }
 
@@ -70,7 +70,7 @@ public:
     }
 
     DomainVal_t result(LHS.size(), false);
-    for (int i = 0; i < LHS.size(); i++) {
+    for (long unsigned int i = 0; i < LHS.size(); i++) {
       result[i] = LHS[i] || RHS[i];
     }
 

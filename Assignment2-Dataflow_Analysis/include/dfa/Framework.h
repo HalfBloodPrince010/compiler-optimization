@@ -113,6 +113,7 @@ private:
     const BasicBlock *const InstParent = Inst.getParent();
     if (&Inst == &(InstParent->front())) {
       errs() << "\t";
+      errs() << "\n\n**[First Inst of BB] -- [Getting Predecessors Mask]**\n\n";
       printDomainWithMask(getBoundaryVal(*InstParent));
       errs() << "\n";
     } // if (&Inst == &(*InstParent->begin()))
@@ -176,7 +177,7 @@ private:
   getMeetOperands(const BasicBlock &BB) const {
     MeetOperands_t operands;
     for (auto *pred : predecessors(&BB)) {
-      operands.push_back(InstDomainValMap.at(pred->back()));
+      operands.push_back(InstDomainValMap.at(&pred->back()));
     }
 
     return operands;
@@ -191,7 +192,7 @@ private:
   getMeetOperands(const BasicBlock &BB) const {
     MeetOperands_t operands;
     for (auto *succ : successors(&BB)) {
-      operands.push_back(InstDomainValMap.at(succ->front()));
+      operands.push_back(InstDomainValMap.at(&succ->front()));
     }
 
     return operands;
@@ -208,7 +209,7 @@ private:
     // Does first element should be top?? or since all elements are assigned top
     // during initialization, this should be okay?
     DomainVal_t merge = MeetOperands.at(0);
-    for (int Idx = 1; Idx < MeetOperands.size(); Idx++) {
+    for (long unsigned int Idx = 1; Idx < MeetOperands.size(); Idx++) {
       merge = MeetOp(merge, MeetOperands.at(Idx));
     }
 
@@ -287,26 +288,51 @@ private:
    */
   bool traverseCFG(const Function &F) {
     bool isChanged = false;
-    for (const llvm::BasicBlock *BB : getBBTraversalOrder(F)) {
+    // clang-format off
+    errs() << "**************************************************" << "\n"
+           << "* Traverse CFG" << "\n"
+           << "**************************************************" << "\n";
+    // clang-format on
+    for (const llvm::BasicBlock &BB : getBBTraversalOrder(F)) {
       /*
        * Initial
        * Case 1: First or Last Instruction in a BB, and not entry
        * or exit block. Get meet(meetOperands())
        * Case 2: Entry or Exit block, get bc().
        */
+      errs() << "BB Start\n";
       DomainVal_t IN = getBoundaryVal(BB);
-      for (const llvm::Instruction *I : getInstTraversalOrder(BB)) {
-        DomainVal_t OUT = InstDomainValMap.at(I);
-        isChanged = isChanged | transferFunc(I, &IN, &OUT);
-        errs() << "Instr:" << I->getName() << "\n";
-        // If output changed, we need to update the InstDomainValMap for next iter.
-        InstDomainValMap.at(I) = OUT;
+      for (const llvm::Instruction &I : getInstTraversalOrder(BB)) {
+        errs() << "IN\n[";
+        for (auto in : IN) {
+          errs() << in << ' ';
+        }
+        errs() << "]\n";
+        
+        DomainVal_t OUT = InstDomainValMap.at(&I);
+        
+        errs() << "OUT Before Transfer\n[";
+        for (auto out : OUT) {
+          errs() << out << ' ';
+        }
+        errs() << "]\n";
+        
+        isChanged = isChanged | transferFunc(I, IN, OUT);
+        // If output changed, we need to update the InstDomainValMap for next
+        // iter.
+        errs() << "OUT After Transfer\n[";
+        for (auto out : OUT) {
+          errs() << out << ' ';
+        }
+        errs() << "]\n";
+        InstDomainValMap.at(&I) = OUT;
         /*
          * Case 3: Middle of the block, hence predeccesor (Forward) or successor
          * (Backward) acts as input for next Inst.
          */
         IN = OUT;
       }
+      errs() << "\n\n\n";
     }
 
     return isChanged;
@@ -332,7 +358,13 @@ protected:
 
   bool runOnFunction(const Function &F) {
     // initialize the domain
+    // clang-format off
+    errs() << "**************************************************" << "\n"
+           << "* Intializing Domain" << "\n"
+           << "**************************************************" << "\n";
+    // clang-format on
     initializeDomain(F);
+    errs() << "Domain Size:" << Domain.size() << "\n";
     // apply the initial conditions
     TMeetOp MeetOp;
     for (const auto &Inst : instructions(F)) {

@@ -23,16 +23,35 @@ struct Expression {
     }
 
     /*
-    * Commutation Instruction like add (8), fadd(9), mul(12) and fmul(13),
-    * where lhs + rhs == rhs + lhs
-    * https://llvm.org/doxygen/group__LLVMCCoreTypes.html
-    */
+     * Commutation Instruction like add (8), fadd(9), mul(12) and fmul(13),
+     * where lhs + rhs == rhs + lhs
+     * https://llvm.org/doxygen/group__LLVMCCoreTypes.html
+     */
     if (Expr.Opcode == Opcode) {
+      switch (Opcode) {
+      case Instruction::Add:
+      case Instruction::FAdd:
+      case Instruction::Mul:
+      case Instruction::FMul:
+      case Instruction::And:
+      case Instruction::Or:
+      case Instruction::Xor: {
+        // Commutative
+        if (Expr.LHS == RHS && Expr.RHS == LHS) {
+          return true;
+        }
+        break;
+      }
+      default:
+        break;
+      }
+      /*
       if (Opcode == 8 || Opcode == 9 || Opcode == 12 || Opcode == 13) {
         if (Expr.LHS == RHS && Expr.RHS == LHS) {
           return true;
         }
       }
+      */
     }
 
     return false;
