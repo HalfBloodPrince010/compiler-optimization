@@ -27,20 +27,15 @@ using LivenessFrameworkBase =
 class Liveness final : public LivenessFrameworkBase, public FunctionPass {
 private:
   virtual void initializeDomainFromInst(const Instruction &Inst) override {
-    errs() << Inst.getName() << "\n";
+    errs() << "Instruction: " << Inst << "\n";
     for (auto &operand : Inst.operands()) {
       Value *value = operand.get();
       if (isa<Instruction>(value) || isa<Argument>(value)) {
         Variable variable = Variable(value);
-
-        if (std::find(Domain.begin(), Domain.end(), variable) != Domain.end()) {
 #ifdef DEBUG_LIVENESS
-          errs() << "Adding Instruction or Argument as Domain Variable"
-                 << "\n";
-          errs() << operand->getName() << "\n";
-
-#endif
-
+          errs() << "\tOperand: " << *operand << "\n";
+#endif 
+        if (std::find(Domain.begin(), Domain.end(), variable) == Domain.end()) {
           Domain.emplace_back(variable);
         }
       }
@@ -51,7 +46,7 @@ private:
                             DomainVal_t &OBV) override {
 
     /*
-     * Step 1: Kill 
+     * Step 1: Kill
      * New instruction INST defined
      * kills the previous "uses"
      */
@@ -104,13 +99,7 @@ public:
   }
 
   virtual bool runOnFunction(Function &F) override {
-    // clang-format off
-    errs() << "**************************************************" << "\n"
-           << "* Instruction-Domain Value Mapping" << "\n"
-           << "**************************************************" << "\n";
-    // clang-format on
-
-    return false;
+    return LivenessFrameworkBase::runOnFunction(F);
   }
 };
 

@@ -129,15 +129,18 @@ private:
   METHOD_ENABLE_IF_DIRECTION(Direction::kBackward, void)
   printInstDomainValMap(const Instruction &Inst) const {
     const BasicBlock *const InstParent = Inst.getParent();
-    if (&Inst == &(InstParent->back())) {
-      errs() << "\t";
-      printDomainWithMask(getBoundaryVal(*InstParent));
-      errs() << "\n";
-    } // if (&Inst == &(*InstParent->end()))
-    outs() << Inst << "\n";
-    errs() << "\t";
+    errs() << "\n";
     printDomainWithMask(InstDomainValMap.at(&Inst));
     errs() << "\n";
+    outs() << Inst << "\n";
+    //printDomainWithMask(InstDomainValMap.at(&Inst));
+    //errs() << "\n";
+    if (&Inst == &(InstParent->back())) {
+      errs() << "**[Last Inst of BB] -- [Getting Successors: Mask]**";
+      errs() << "\n";
+      printDomainWithMask(getBoundaryVal(*InstParent));
+      errs() << "\n\n";
+    } // if (&Inst == &(*InstParent->end()))
   }
 
   /**
@@ -300,7 +303,7 @@ private:
        * or exit block. Get meet(meetOperands())
        * Case 2: Entry or Exit block, get bc().
        */
-      errs() << "BB Start\n";
+      errs() << "BB:" << BB << "\n";
       DomainVal_t IN = getBoundaryVal(BB);
       for (const llvm::Instruction &I : getInstTraversalOrder(BB)) {
         errs() << "IN\n[";
@@ -308,7 +311,8 @@ private:
           errs() << in << ' ';
         }
         errs() << "]\n";
-        
+        errs() << I << "\n";
+
         DomainVal_t OUT = InstDomainValMap.at(&I);
         
         errs() << "OUT Before Transfer\n[";
