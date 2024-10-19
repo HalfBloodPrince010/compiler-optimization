@@ -103,10 +103,6 @@ private:
 
 class AntiExprWrapperPass : public FunctionPass {
 private:
-  /**
-   * @todo(cscd70) Uncomment the following line after the completion of
-   *               @c AntiExprImpl .
-   */
   AntiExprImpl AntiExpr;
 
 public:
