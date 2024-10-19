@@ -19,8 +19,11 @@ using WBAvailExprFrameworkBase =
 class WBAvailExprImpl : public WBAvailExprFrameworkBase {
 private:
   std::unordered_map<const Instruction *, DomainVal_t> AntiExprInstDomainValMap;
+  // Basic Block - Boundary Value Mapping
+  std::unordered_map<const BasicBlock *, std::vector<bool>>
+      BasicBlockBoundaryValMap;
 
-public:
+private:
   WBAvailExprImpl() = default;
 
   void initialize(std::vector<Expression> AntiExprDomain,
@@ -31,7 +34,12 @@ public:
     this->AntiExprInstDomainValMap = AntiExprInstDomainValMap;
   }
 
-private:
+  void constructBasicBlockBoundaryValMap(const Function &F) {
+    for (const auto &BB : F) {
+      BasicBlockBoundaryValMap.emplace(&BB, getBoundaryVal(BB));
+    }
+  }
+
   virtual void initializeDomainFromInst(const Instruction &Inst) override {
     /*
      * Domain same as Anti-Expression, which is set in the initialize
@@ -155,19 +163,23 @@ public:
     auto AntiExprInstDomainValMap = AntiExpr.getInstDomainValMap();
     WBAvailExpr.initialize(AntiExprDomain, AntiExprInstDomainValMap);
 
-    return WBAvailExpr.runOnFunction(F);
+    bool isModified = WBAvailExpr.runOnFunction(F);
+
+    WBAvailExpr.constructBasicBlockBoundaryValMap(F);
+
+    return isModified;
   }
 
   /**
-   * @todo(cscd70) Obtain the @c InstDomainValMap and boundary values at each BB
+   * Obtain the @c InstDomainValMap and boundary values at each BB
    *               from @c WBAvailExprImpl .
    */
   std::unordered_map<const Instruction *, std::vector<bool>>
   getInstDomainValMap() const {
-    return std::unordered_map<const Instruction *, std::vector<bool>>();
+    return WBAvailExpr.InstDomainValMap;
   }
   std::unordered_map<const BasicBlock *, std::vector<bool>>
   getBoundaryVals() const {
-    return std::unordered_map<const BasicBlock *, std::vector<bool>>();
+    return WBAvailExpr.BasicBlockBoundaryValMap;
   }
 };
