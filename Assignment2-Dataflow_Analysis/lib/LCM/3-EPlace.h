@@ -4,6 +4,7 @@
  * @file Earliest Placement
  */
 #include "2-WBAvailExpr.h"
+#include <cassert>
 #define DEBUG_EPLACE
 class EPlaceWrapperPass;
 
@@ -18,6 +19,9 @@ private:
   // Will-be Availble Expression IN
   std::unordered_map<const BasicBlock *, std::vector<bool>>
       WBAvailExprBoundaryVals;
+
+  // Earliest
+  std::unordered_map<const BasicBlock *, std::vector<bool>> Earliest;
 
 private:
   EPlaceImpl() = default;
@@ -60,6 +64,37 @@ private:
 
   virtual bool transferFunc(const Instruction &Inst, const DomainVal_t &IV,
                             DomainVal_t &OV) override {
+    /*
+     * Ideally, we would like to have the Earliest Placement
+     * at the Basic Block Level.
+     *
+     */
+    DomainVal_t TEMP_OV = IV;
+    const BasicBlock *const BB = Inst.getParent();
+    if (&Inst == &(BB->front())) {
+      DomainVal_t AntiExprIN = AntiExprInstDomainValMap.at(&Inst);
+      DomainVal_t WBAvailExprIN = WBAvailExprBoundaryVals.at(BB);
+      /*
+       * Earliest = Anticipated at BB[IN] - Available at BB[IN]
+       * E = AntiExpr - WBAvailExpr
+       * E = AntiExpr INTERSECT WBAvailExprComplement
+       * A = B - C === A = B Intersection C'
+       *
+       * Note: WB Available Expression is a forward Dataflow analysis
+       * Hence, its InstDomainValMap contains out, we need IN, which is
+       * essentially the Boundary Condition at the first Inst.
+       */
+      WBAvailExprIN.flip(); // Complement
+      assert(TEMP_OV.size() == AntiExprIN.size() == WBAvailExprIN.size() &&
+             "Domain Element of  AntiExpr at BB[IN] should equal WBAvailExpr "
+             "at BB[IN]");
+      for (long unsigned int i = 0; i < TEMP_OV.size(); ++i) {
+        TEMP_OV[i] = AntiExprIN[i] && WBAvailExprIN[i];
+      }
+
+      Earliest.emplace(BB, TEMP_OV);
+    }
+
     return false;
   }
 
