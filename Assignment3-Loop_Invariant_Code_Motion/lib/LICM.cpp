@@ -3,6 +3,7 @@
  */
 #include <llvm/Analysis/LoopPass.h>
 #include <llvm/Analysis/ValueTracking.h>
+#include <llvm/IR/Dominators.h>
 
 using namespace llvm;
 
@@ -15,16 +16,19 @@ public:
   LoopInvariantCodeMotion() : LoopPass(ID) {}
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
-    /**
-     * @todo(cscd70) Request the dominator tree and the loop simplify pass.
-     */
+    AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<LoopInfoWrapperPass>();
     AU.setPreservesCFG();
   }
 
-  /**
-   * @todo(cscd70) Please finish the implementation of this method.
-   */
-  virtual bool runOnLoop(Loop *L, LPPassManager &LPM) override { return false; }
+  virtual bool runOnLoop(Loop *L, LPPassManager &LPM) override {
+    errs() << "Analyzing loop in function: "
+           << *(L->getHeader()) << "\n";
+    for (auto *BB : L->getBlocks()) {
+      errs() << "  Basic Block:" << *BB << "\n";
+    }
+    return false;
+  }
 };
 
 char LoopInvariantCodeMotion::ID = 0;
