@@ -64,12 +64,35 @@ public:
            !isa<LandingPadInst>(I) && IsInvariant;
   }
 
+  bool dominatesAllLoopExit(Loop *L, DominatorTree *DT, Instruction *I) {
+    bool dominatesAllExits = true;
+    llvm::SmallVector<llvm::BasicBlock *, 8> ExitBlocks;
+    L->getExitBlocks(ExitBlocks);
+
+    for(auto *ExitBB: ExitBlocks) {
+      if(!DT->dominates(I->getParent(), ExitBB)) {
+        return false;
+      }
+    }
+
+    return dominatesAllExits;
+  }
+
   virtual bool runOnLoop(Loop *L, LPPassManager &LPM) override {
-    /*
-    For each loop, clear the list of invariantInstructions.
-    */
+    // For each loop, clear the list of invariantInstructions.
     invariantInstructions.clear();
     bool hasChanged = false;
+
+    if (!L->getLoopPreheader()) {
+      errs() << "Loop Preheader not inserted!" << "\n";
+      }
+    errs() << "Loop Preheader before Code Motion: " << *(L->getLoopPreheader()) << "\n";
+
+    // clang-format off
+    errs() << "**************************************************" << "\n"
+           << "* Invariant Instructions" << "\n"
+           << "**************************************************" << "\n";
+    // clang-format on
 
     errs() << "Analyzing loop in function: " << *(L->getHeader()) << "\n";
     for (auto *BB : L->getBlocks()) {
@@ -86,6 +109,37 @@ public:
       }
       errs() << "\n\n";
     }
+
+    DominatorTreeWrapperPass &dominatorTreePass = getAnalysis<DominatorTreeWrapperPass>();
+    DominatorTree &DT = dominatorTreePass.getDomTree();
+
+    /*
+    Code Motion Conditions
+      1. Loop Invariant Instruction
+      2. Dominates all the exits in the Loop
+      3. Assigned only once.
+      4. Definition dominates the use.
+
+      Note: SSA handles condition 3 and 4
+    */
+
+    // clang-format off
+    errs() << "**************************************************" << "\n"
+           << "* Code Motion" << "\n"
+           << "**************************************************" << "\n";
+    // clang-format on
+
+    for(auto *invariantInst: invariantInstructions){
+      if(dominatesAllLoopExit(L, &DT, invariantInst)) {
+        //TODO: Move to Preheader
+        errs() << "Instruction to Move to the preheader:" << *invariantInst << "\n";
+        invariantInst->moveBefore(L->getLoopPreheader()->getTerminator());
+        errs() << "\n\n";
+      }
+    }
+
+    errs() << "Loop Preheader after Code Motion: " << *(L->getLoopPreheader()) << "\n";
+
     return hasChanged;
   }
 };
