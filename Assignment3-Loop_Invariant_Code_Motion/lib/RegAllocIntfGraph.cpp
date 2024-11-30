@@ -1,6 +1,7 @@
 /**
  * @file Interference Graph Register Allocator
  */
+#include <llvm-12/llvm/MC/MCRegister.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/CodeGen/LiveIntervals.h>
 #include <llvm/CodeGen/LiveRangeEdit.h>
@@ -209,11 +210,22 @@ public:
 AllocationHints::AllocationHints(RAIntfGraph *const RA,
                                  const LiveInterval *const LI) {
   const TargetRegisterClass *const RC = RA->MRI->getRegClass(LI->reg());
+  ArrayRef<MCPhysReg> Order = RA->RCI.getOrder(RC);
+  bool IsTargetSpecificHardHint = RA->TRI->getRegAllocationHints(LI->reg(), Order, Hints, *RA->MF, RA->VRM);
 
-  /**
-   * @todo(cscd70) Please complete this part by constructing the allocation
-   *               hints, similar to the tutorial example.
-   */
+  if(!IsTargetSpecificHardHint) {
+    /*
+    1. Hard hints are strong suggestions for register allocation that the allocator 
+       should try to follow if possible.
+    2. Soft hints, on the other hand, are more flexible suggestions that the allocator 
+       can consider but may easily ignore.
+       
+    The getRegAllocationHints method returns a boolean indicating whether the hints provided are hard hints or not
+    */
+    for(const MCPhysReg &PhysReg: Order) {
+      Hints.push_back(PhysReg);
+    }
+  }
 
   outs() << "Hint Registers for Class " << RA->TRI->getRegClassName(RC)
          << ": [";
