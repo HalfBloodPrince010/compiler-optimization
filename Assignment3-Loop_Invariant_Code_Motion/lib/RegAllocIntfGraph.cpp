@@ -1,6 +1,10 @@
 /**
  * @file Interference Graph Register Allocator
  */
+#include <llvm-12/llvm/CodeGen/LiveInterval.h>
+#include <llvm-12/llvm/CodeGen/MachineBasicBlock.h>
+#include <llvm-12/llvm/CodeGen/Register.h>
+#include <llvm-12/llvm/CodeGen/SlotIndexes.h>
 #include <llvm-12/llvm/MC/MCRegister.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/CodeGen/LiveIntervals.h>
@@ -21,6 +25,7 @@
 #include <llvm/Target/TargetMachine.h>
 
 #include <cmath>
+#include <math.h>
 #include <queue>
 #include <tuple>
 #include <unordered_map>
@@ -219,7 +224,7 @@ AllocationHints::AllocationHints(RAIntfGraph *const RA,
        should try to follow if possible.
     2. Soft hints, on the other hand, are more flexible suggestions that the allocator 
        can consider but may easily ignore.
-       
+
     The getRegAllocationHints method returns a boolean indicating whether the hints provided are hard hints or not
     */
     for(const MCPhysReg &PhysReg: Order) {
@@ -275,7 +280,85 @@ void RAIntfGraph::IntfGraph::insert(const Register &Reg) {
   // 3. Update the weights of Reg (and its interfering neighbors), using the
   //    formula on "Lecture 6 Register Allocation Page 23".
   // 4. Insert 'Reg' into the graph.
+  LiveInterval &LI = RA->LIS->getInterval(Reg);
+  std::unordered_set<Register> Interferences;
+  AllocationHints PhysRegAllocationOrder = AllocationHints(RA, &LI);
+
+  // 1. Collect all VIRTUAL registers that interfere with 'Reg'.
+  for (unsigned virtRegIdx=0; virtRegIdx < RA->MRI->getNumVirtRegs(); ++virtRegIdx) {
+    Register OtherVirtualRegister = Register::index2VirtReg(virtRegIdx);
+    
+    if(Reg == OtherVirtualRegister) {
+      continue;
+    }
+    LiveInterval &OtherVirtualRegisterLI = RA->LIS->getInterval(OtherVirtualRegister);
+    if(LI.overlaps(OtherVirtualRegisterLI)) {
+      Interferences.insert(OtherVirtualRegister);
+    }
+  }
+
+  /*
+  2. Collect all PHYSICAL registers that interfere with 'Reg'.
+
+  Essential thing we need to check here is overlapping of register units or
+  overlap with other masked registers.
+
+  Q: Can this interference can also be checked during allocation???
+  */
+  for(MCRegister PhysReg: PhysRegAllocationOrder) {
+    for (MCRegUnitIterator Units(PhysReg, RA->TRI); Units.isValid(); ++Units) {
+      if (LI.overlaps(RA->LIS->getRegUnit(*Units))) {
+        // VirtReg overlaps with PhysReg Unit
+        Interferences.insert(PhysReg);
+      }
+    }
+  }
+
+  // 3. Update the Weight of Live Interval
+  unsigned degree = Interferences.size();
+  errs() << "Degree of the Live Interval:" << degree << "\n";
+
+  unsigned maxLoopNestDepth = 0;
+  for(LiveRange::Segment &S: LI.segments) {
+    SlotIndex start = S.start;
+    SlotIndex end = S.end;
+
+    for(SlotIndex I = start; I < end; I.getBaseIndex()) {
+        if (const MachineInstr *MI = RA->SI->getInstructionFromIndex(I)) {
+          const MachineBasicBlock *BB = MI->getParent();
+          if (BB) {
+            unsigned depth = RA->MLI->getLoopDepth(BB);
+            if (depth > maxLoopNestDepth) {
+              maxLoopNestDepth = depth;
+            }
+          }
+        }
+      }
+    }
+    errs() << "Loop Nest Depth:" << maxLoopNestDepth << "\n";
+
+    unsigned defCount = 0;
+    for (auto it=RA->MRI->def_operands(Reg).begin(); it != RA->MRI->def_operands(Reg).end(); ++it) {
+      defCount++;
+    }
+    errs() << "#Defs:" << defCount << "\n";
+
+    unsigned useCount = 0;
+    for (auto it=RA->MRI->use_operands(Reg).begin(); it != RA->MRI->use_operands(Reg).end(); ++it) {
+      useCount++;
+    }
+    errs() << "#Uses:" << useCount << "\n";
+
+    float weight = (defCount + useCount) * pow(10.0, maxLoopNestDepth) / degree;
+    errs() << "Weight of the Live Interval:" << LI << "is " << weight  <<"\n";
+    
+    // TODO: Set the weight to the Live Interval
+    // LI.setWeight(weight);
+
+  // 4. Insert the Register to the Interference Graph.
+  IntfRels.insert({&LI, Interferences});
 }
+
 
 void RAIntfGraph::IntfGraph::erase(const Register &Reg) {
   /**
@@ -287,9 +370,15 @@ void RAIntfGraph::IntfGraph::erase(const Register &Reg) {
 }
 
 void RAIntfGraph::IntfGraph::build() {
-  /**
-   * @todo(cscd70) Please implement this method.
-   */
+  // Virtual Registers
+  for(unsigned virtRegIdx=0; virtRegIdx < RA->MRI->getNumVirtRegs(); ++virtRegIdx) {
+    Register Reg = Register::index2VirtReg(virtRegIdx);
+    if(RA->MRI->reg_nodbg_empty(Reg)) {
+      continue;
+    }
+
+    insert(Reg);
+  }
 }
 
 RAIntfGraph::IntfGraph::MaterializeResult_t
