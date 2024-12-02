@@ -51,12 +51,11 @@ struct hash<Register> {
 template <> //
 struct greater<LiveInterval *> {
   bool operator()(LiveInterval *const &LHS, LiveInterval *const &RHS) {
-    /**
-     * @todo(cscd70) Please finish the implementation of this function that is
-     *               used for determining whether one live interval has spill
-     *               cost greater than the other.
-     */
-    return false;
+    /*
+    The expression comp(a,b), where comp is an object of this type and a and b 
+    are element keys, shall return true if a is considered to go before b.
+    */
+    return LHS->weight() > RHS->weight();
   }
 };
 
@@ -361,12 +360,16 @@ void RAIntfGraph::IntfGraph::insert(const Register &Reg) {
 
 
 void RAIntfGraph::IntfGraph::erase(const Register &Reg) {
-  /**
-   * @todo(cscd70) Please implement this method.
-   */
   // 1. ∀n ∈ neighbors(Reg), erase 'Reg' from n's interfering set and update its
   //    weights accordingly.
+  LiveInterval &LI = RA->LIS->getInterval(Reg);
+  for (auto& entry : IntfRels) {
+    std::unordered_set<Register>& interferingRegisterSet = entry.second;
+    interferingRegisterSet.erase(Reg);
+  }
+
   // 2. Erase 'Reg' from the interference graph.
+  IntfRels.erase(&LI);
 }
 
 void RAIntfGraph::IntfGraph::build() {
