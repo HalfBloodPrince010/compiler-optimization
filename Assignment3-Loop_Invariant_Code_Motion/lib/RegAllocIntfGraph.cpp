@@ -141,7 +141,7 @@ private:
     void tryMaterializeAll();
     /**
      * @brief Returns the Allocatable Physical Register/ Available Colors Count
-     * ] for the LI
+     * for the LI
      */
     unsigned getAvailableColors(const LiveInterval *LI);
     void clear() { IntfRels.clear(); }
@@ -166,19 +166,33 @@ private:
   /// The following two methods are inherited from @c LiveRangeEdit::Delegate
   /// and implicitly used by the spiller to edit the live ranges.
   bool LRE_CanEraseVirtReg(Register Reg) override {
-    /**
-     * @todo(cscd70) Please implement this method.
-     */
     // If the virtual register has been materialized, undo its physical
     // assignment and erase it from the interference graph.
-    return true;
+    
+    // Check if this virtual register has been assigned a physical register
+    if (VRM->hasPhys(Reg)) {
+      // Unassign the virtual register
+      LRM->unassign(LIS->getInterval(Reg));
+      G.erase(Reg);
+      return true;
   }
+
+     // If not assigned then may be they are still in the graph waiting to be assigned
+    LIS->getInterval(Reg).clear();
+    return false;
+  }
+
   void LRE_WillShrinkVirtReg(Register Reg) override {
-    /**
-     * @todo(cscd70) Please implement this method.
-     */
     // If the virtual register has been materialized, undo its physical
     // assignment and re-insert it into the interference graph.
+    
+    if (!VRM->hasPhys(Reg)) {
+      return;
+    }
+    
+     // Unassign the virtual register
+    LRM->unassign(LIS->getInterval(Reg));
+    G.insert(Reg);
   }
 
 public:
@@ -282,9 +296,6 @@ bool RAIntfGraph::runOnMachineFunction(MachineFunction &MF) {
 }
 
 void RAIntfGraph::IntfGraph::insert(const Register &Reg) {
-  /**
-   * @todo(cscd70) Please implement this method.
-   */
   // 1. Collect all VIRTUAL registers that interfere with 'Reg'.
   // 2. Collect all PHYSICAL registers that interfere with 'Reg'.
   // 3. Update the weights of Reg (and its interfering neighbors), using the
@@ -387,6 +398,7 @@ void RAIntfGraph::IntfGraph::erase(const Register &Reg) {
 }
 
 void RAIntfGraph::IntfGraph::build() {
+  clear();
   // Virtual Registers
   for (unsigned virtRegIdx = 0; virtRegIdx < RA->MRI->getNumVirtRegs();
        ++virtRegIdx) {
@@ -465,16 +477,11 @@ RAIntfGraph::IntfGraph::tryMaterializeAllInternal() {
   // ∀r ∈ IntfRels.keys, try to materialize it. If successful, cache it in
   // PhysRegAssignment, else mark it as to be spilled.
 
-  // Nodes clone of IntfRels
-  std::multimap<LiveInterval *, std::unordered_set<Register>,
-                std::greater<LiveInterval *>>
-      Nodes = IntfRels;
-
   std::stack<
       std::pair<llvm::LiveInterval *const, std::unordered_set<llvm::Register>>>
       RAStack;
 
-  for (auto &entry : Nodes) {
+  for (auto &entry : IntfRels) {
     LiveInterval *LI = entry.first;
     std::unordered_set<Register> &neighbors = entry.second;
     // Neighbors / degree
@@ -502,13 +509,13 @@ RAIntfGraph::IntfGraph::tryMaterializeAllInternal() {
   added to stack by skipping the register selection phase.
   */
 
-  if (!Nodes.empty()) {
+  if (!IntfRels.empty()) {
     // Not empty indicates, few nodes were not added to stack
     double MinSpillWeight = DBL_MAX;
     LiveInterval *SpillCandidate = nullptr;
 
     // Pick one with least spill weight
-    for (auto &spillable : Nodes) {
+    for (auto &spillable : IntfRels) {
       LiveInterval *SpillableLI = spillable.first;
       if (SpillableLI->weight() < MinSpillWeight) {
         MinSpillWeight = SpillableLI->weight();
@@ -620,10 +627,12 @@ void RAIntfGraph::IntfGraph::tryMaterializeAll() {
     }
 
     // Spill the Register returned
+    SmallVector<Register, 4> SplitVirtRegs;
+    LiveRangeEdit LRE(SpillCandidate, SplitVirtRegs, *RA->MF, *RA->LIS, RA->VRM, RA);
+    RA->SpillerInst->spill(LRE);
 
     // Re-build the Interference graph
-
-    // Try to materialize the virtual registers again
+    build();
   }
 
   // Assign the virtual register to the physical register.
